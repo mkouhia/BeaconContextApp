@@ -12,13 +12,6 @@
 'use strict';
 
 import React, { Component } from 'react';
-import {
-  AppRegistry,
-  StyleSheet,
-  Text,
-  View,
-  ListView
-} from 'react-native';
 
 
 import SQLite from 'react-native-sqlite-storage';
@@ -31,74 +24,51 @@ const database_displayname = "SQLite Test Database";
 const database_size = 200000;
 let db;
 
-export default  class SQLiteDemo extends Component {
-  constructor() {
-    super();
-    this.progress = [];
-    this.state = {
-      progress: [],
-      ds: new ListView.DataSource({
-        rowHasChanged: (r1, r2) => r1 !== r2}
-      )
-    };
-  }
-
-  updateProgress = (text, resetState) => {
-    let progress = [];
-    if (!resetState) {
-      progress = [...this.progress];
-    }
-    progress.push(text);
-    this.progress = progress;
-    this.setState({
-      progress
-    });
-  }
+export default class DatabaseHelper extends Component {
 
   componentWillUnmount = () => {
     this.closeDatabase();
   }
 
   errorCB = (err) => {
-    console.log("error: ",err);
-    this.updateProgress("Error: "+ (err.message || err));
+    console.log("SQL resulted in error: " + err);
+//    console.log("Error: "+ (err.message || err));
     return false;
   }
 
   successCB = () => {
-    console.log("SQL executed ...");
+    console.log("Callback: success!");
   }
 
   openCB = () => {
-    this.updateProgress("Database OPEN");
+    console.log("Callback: OPEN");
   }
 
   closeCB = () => {
-    this.updateProgress("Database CLOSED");
+    console.log("Callback: CLOSED");
   }
 
   deleteCB = () => {
-    console.log("Database DELETED");
-    this.updateProgress("Database DELETED");
+    console.log("Callback: DELETED");
   }
 
   populateDatabase = (db) => {
-    this.updateProgress("Database integrity check");
+    console.log("Database integrity check");
     db.executeSql('SELECT 1 FROM Version LIMIT 1', [],
       () => {
-        this.updateProgress("Database is ready ... executing query ...");
+        console.log("Database is ready ... executing query ...");
         db.transaction(this.queryEmployees,this.errorCB,() => {
-          this.updateProgress("Processing completed");
+          console.log("Processing completed");
         });
       },
       (error) => {
         console.log("received version error:", error);
-        this.updateProgress("Database not yet ready ... populating data");
+        console.log("Database not yet ready ... populating data");
         db.transaction(this.populateDB, this.errorCB, () => {
-          this.updateProgress("Database populated ... executing query ...");
+          console.log("Database populated ... executing query ...");
           db.transaction(this.queryEmployees,this.errorCB, () => {
             console.log("Transaction is now finished");
-            this.updateProgress("Processing completed");
+            console.log("Processing completed");
             this.closeDatabase();
           });
         });
@@ -106,13 +76,13 @@ export default  class SQLiteDemo extends Component {
   }
 
   populateDB = (tx) => {
-    this.updateProgress("Executing DROP stmts");
+    console.log("Executing DROP stmts");
 
     tx.executeSql('DROP TABLE IF EXISTS Employees;');
     tx.executeSql('DROP TABLE IF EXISTS Offices;');
     tx.executeSql('DROP TABLE IF EXISTS Departments;');
 
-    this.updateProgress("Executing CREATE stmts");
+    console.log("Executing CREATE stmts");
 
     tx.executeSql('CREATE TABLE IF NOT EXISTS Version( '
       + 'version_id INTEGER PRIMARY KEY NOT NULL); ', [], this.successCB, this.errorCB);
@@ -135,7 +105,7 @@ export default  class SQLiteDemo extends Component {
       + 'FOREIGN KEY ( office ) REFERENCES Offices ( office_id ) '
       + 'FOREIGN KEY ( department ) REFERENCES Departments ( department_id ));', []);
 
-    this.updateProgress("Executing INSERT stmts");
+    console.log("Executing INSERT stmts");
 
     tx.executeSql('INSERT INTO Departments (name) VALUES ("Client Services");', []);
     tx.executeSql('INSERT INTO Departments (name) VALUES ("Investor Services");', []);
@@ -168,126 +138,37 @@ export default  class SQLiteDemo extends Component {
   }
 
   queryEmployeesSuccess = (tx,results) => {
-    this.updateProgress("Query completed");
+    console.log("queryEmployeesSuccess");
     var len = results.rows.length;
     for (let i = 0; i < len; i++) {
       let row = results.rows.item(i);
-      this.updateProgress(`Empl Name: ${row.name}, Dept Name: ${row.deptName}`);
+      console.log(`Empl Name: ${row.name}, Dept Name: ${row.deptName}`);
     }
   }
 
   loadAndQueryDB = () => {
-    this.updateProgress("Opening database ...",true);
+    console.log("Opening database ...");
     db = SQLite.openDatabase(database_name, database_version, database_displayname, database_size, this.openCB, this.errorCB);
     this.populateDatabase(db);
   }
 
   deleteDatabase = () => {
-    this.updateProgress("Deleting database");
+    console.log("Deleting database");
     SQLite.deleteDatabase(database_name, this.deleteCB, this.errorCB);
   }
 
   closeDatabase = () => {
     if (db) {
       console.log("Closing database ...");
-      this.updateProgress("Closing database");
       db.close(this.closeCB,this.errorCB);
     } else {
-      this.updateProgress("Database was not OPENED");
+      console.log("Database was not OPENED");
     }
   }
 
   runDemo = () => {
-    this.updateProgress("Starting SQLite Callback Demo",true);
+    console.log("Starting SQLite Callback Demo");
     this.loadAndQueryDB();
   }
 
-  renderProgressEntry = (entry) => {
-    return (<View style={listStyles.li}>
-      <View>
-        <Text style={listStyles.liText}>{entry}</Text>
-      </View>
-    </View>)
-  }
-
-  render = () => {
-    return (<View style={styles.mainContainer}>
-      <View style={styles.toolbar}>
-        <Text style={styles.toolbarButton} onPress={this.runDemo}>
-          Run Demo
-        </Text>
-        <Text style={styles.toolbarButton} onPress={this.closeDatabase}>
-          Close DB
-        </Text>
-        <Text style={styles.toolbarButton} onPress={this.deleteDatabase}>
-          Delete DB
-        </Text>
-      </View>
-      <ListView
-        enableEmptySections={true}
-        dataSource={this.state.ds.cloneWithRows(this.state.progress)}
-        renderRow={this.renderProgressEntry}
-        style={listStyles.liContainer}/>
-    </View>);
-  }
 }
-
-var listStyles = StyleSheet.create({
-  li: {
-    borderBottomColor: '#c8c7cc',
-    borderBottomWidth: 0.5,
-    paddingTop: 15,
-    paddingRight: 15,
-    paddingBottom: 15,
-  },
-  liContainer: {
-    backgroundColor: '#fff',
-    flex: 1,
-    paddingLeft: 15,
-  },
-  liIndent: {
-    flex: 1,
-  },
-  liText: {
-    color: '#333',
-    fontSize: 17,
-    fontWeight: '400',
-    marginBottom: -3.5,
-    marginTop: -3.5,
-  },
-});
-
-var styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5FCFF',
-  },
-  welcome: {
-    fontSize: 20,
-    textAlign: 'center',
-    margin: 10,
-  },
-  instructions: {
-    textAlign: 'center',
-    color: '#333333',
-    marginBottom: 5,
-  },
-  toolbar: {
-    backgroundColor: '#51c04d',
-    paddingTop: 30,
-    paddingBottom: 10,
-    flexDirection: 'row'
-  },
-  toolbarButton: {
-    color: 'blue',
-    textAlign: 'center',
-    flex: 1
-  },
-  mainContainer: {
-    flex: 1
-  }
-});
-
-//AppRegistry.registerComponent('AwesomeProject', () => SQLiteDemo);
